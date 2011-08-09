@@ -17,17 +17,18 @@ parser.add_option('--size', '-s', help='Target document size in kb (approximate)
 parser.add_option('--numProps', '-p', help='Number of properties in the JSON document object.')
 parser.add_option('--inserts', '-n', help='Total number of inserts to perform.')
 parser.add_option('--deleteExisting', '-d', help='Deletes the test database "update_large_doc" if it already exists.', action='store_true')
+parser.add_option('--batch', '-b', help='Uses batch mode', action='store_true')
 parser.defaults = {
     'size': DOC_SIZE,
     'numProps': DOC_NUM_PROPERTIES,
     'inserts': INSERTS,
-    'deleteExisting': False
+    'deleteExisting': False,
+    'batch':False
 }
 params = parser.parse_args()[0]
 params.numProps = int(params.numProps)
 params.size = int(params.size)
 params.inserts = int(params.inserts)
-
 
 # formatting number of bytes to human readable format
 # from http://mail.python.org/pipermail/python-list/2008-August/1171178.html

@@ -13,24 +13,25 @@ SERVER_PORT=5984
 NUM_TEST_DOCS=200
 
 parser = OptionParser()
-parser.add_option('--numDocs', '-n', help='Number of test docs to put into database.')
+parser.add_option('--numDocs', help='Number of test docs to put into database.')
 parser.add_option('--size', '-s', help='Target document size in kb (approximate), a higher value equates to larger documents being updated.')
 parser.add_option('--numProps', '-p', help='Number of properties in the JSON document object.')
-parser.add_option('--updates', '-c', help='Total number of updates to perform.')
+parser.add_option('--updates', '-n', help='Total number of updates to perform.')
 parser.add_option('--deleteExisting', '-d', help='Deletes the test database "update_large_doc" if it already exists.', action='store_true')
+parser.add_option('--batch', '-b', help='Uses batch mode', action='store_true')
 parser.defaults = {
     'numDocs': NUM_TEST_DOCS,
     'size': DOC_SIZE,
     'numProps': DOC_NUM_PROPERTIES,
     'updates': UPDATES,
-    'deleteExisting': False
+    'deleteExisting': False,
+    'batch':False
 }
 params = parser.parse_args()[0]
 params.numDocs = int(params.numDocs)
 params.numProps = int(params.numProps)
 params.size = int(params.size)
 params.updates = int(params.updates)
-
 
 # formatting number of bytes to human readable format
 # from http://mail.python.org/pipermail/python-list/2008-August/1171178.html
@@ -92,7 +93,7 @@ print('testing with doc target size = "%s kB", # of properties = "%s", updates =
 docs = []
 for i in range(0, min(params.numDocs, params.updates)):
     doc = mkdoc()
-    db.save(doc, batch='ok')
+    db.save(doc)
     docs.append(doc)
 db.commit()
 print('each document is approximately %s bytes' % bytestr(len(repr(db.get(docs[i]['_id']).items()))))
@@ -104,7 +105,10 @@ for x in range(0, params.updates):
         i = 0
     docCopy = db.get(docs[i]['_id'])
     flipFlag(docCopy)
-    db.save(docCopy, batch='ok')
+    if params.batch:
+        db.save(doc, batch='ok')
+    else:
+        db.save(doc)
     i = i + 1
 etime = time.time()
 db.commit()
