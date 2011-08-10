@@ -128,6 +128,10 @@ for i in range(0, min(params.numDocs, params.numOps)):
     db.save(docCopy)
     docs.append(docId)
 db.commit()
+db.compact()  
+while db.info()['compact_running']:
+    time.sleep(1)
+
 print('each document is approximately %s' % bytestr(len(repr(db.get(docs[0]).items()))))
 i = 0
 updateFunc = None
