@@ -1,15 +1,21 @@
 #!/usr/bin/env python
-import couchdb
+
+"""
+A script help gather data on the behaviors of CouchDB when it comes updates.
+"""
+
 import sys
 import time 
 import copy
 from optparse import OptionParser
 from uuid import uuid4
-import httplib2
 from couchdb import json
 
-"""
-A script help gather data on the behaviors of CouchDB when it comes updates.
+try:
+    import couchdb
+except ImportError:
+    print """
+Cannot import couchdb (couchdb-python)
 
 Follow the instructions at http://wiki.apache.org/couchdb/Getting_started_with_Python to setup Python dependencies. Basically
 From a terminal window:
@@ -19,6 +25,22 @@ $ sudo python ez_setup.py
 $ wget http://pypi.python.org/packages/2.6/C/CouchDB/CouchDB-0.8-py2.6.egg
 $ sudo easy_install CouchDB-0.8-py2.6.egg
 """
+    sys.exit(1)
+
+try:
+    import httplib2
+except ImportError:
+    print """
+Cannot import httplib2 
+
+Download and install a recent version of httplib2 from http://code.google.com/p/httplib2/
+
+$ wget http://httplib2.googlecode.com/files/httplib2-0.7.1.tar.gz
+$ tar zxf httplib2-0.7.1.tar.gz
+$ cd httplib2-0.7.1
+$ sudo python setup.py install
+"""
+    sys.exit(1)
 
 # Default program values
 TESTDB='jc_couch_test'
