@@ -4,8 +4,9 @@ version := "1.0"
 
 organization := "jchengt"
 
-
 scalaVersion := "2.9.0"
+
+scalacOptions ++= Seq("-unchecked", "-deprecation")
 
 // Add multiple dependencies
 libraryDependencies ++= Seq(
