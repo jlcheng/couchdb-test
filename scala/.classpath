@@ -6,10 +6,10 @@
 	<classpathentry kind="lib" path="lib/jopt-simple-3.3.jar"/>
 	<classpathentry kind="lib" path="lib/commons-logging-1.1.1.jar"/>
 	<classpathentry kind="lib" path="lib/commons-logging-api-1.1.1.jar"/>
-	<classpathentry kind="lib" path="lib/httpclient-4.1.2.jar"/>
-	<classpathentry kind="lib" path="lib/httpclient-cache-4.1.2.jar"/>
-	<classpathentry kind="lib" path="lib/httpcore-4.1.2.jar"/>
-	<classpathentry kind="lib" path="lib/httpmime-4.1.2.jar"/>
 	<classpathentry kind="lib" path="lib/commons-codec-1.4.jar"/>
+	<classpathentry kind="lib" path="lib/httpasyncclient-4.0-alpha2.jar"/>
+	<classpathentry kind="lib" path="lib/httpcore-nio-4.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/httpclient-4.1.2.jar"/>
+	<classpathentry kind="lib" path="lib/httpcore-4.1.2.jar"/>
 	<classpathentry kind="output" path="target/scala-2.9.0.final/classes"/>
 </classpath>
