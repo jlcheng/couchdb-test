@@ -28,7 +28,6 @@ import org.apache.http.util.EntityUtils
 object InsertTest {
 
   def main(argv: Array[String]): Unit = {
-
     // Setup options parser
     val parser = new OptionParser()
     parser.acceptsAll(asList("help", "h"), "help")
@@ -125,10 +124,10 @@ object InsertTest {
       println("Database '%s' created.".format(dbName))
     }
 
-    val stime = System.currentTimeMillis()
     val doc = mkdoc(size)
     println("Each document is approximately %s kb".format(doc.length() / 1024))
     val latch = new CountDownLatch(count)
+    val sw = new StopWatch().zero()    
     0.until(count).foreach { docId =>
       val put = new HttpPut(dbUrl + "/" + docId + "?batch=ok")
       put.setEntity(new StringEntity(doc))
@@ -145,13 +144,11 @@ object InsertTest {
         }
       })
     }
-
     latch.await()
     asyncHttpClient.shutdown()
-
-    val etime = System.currentTimeMillis()
-    val elapsed = etime - stime
-    println("%d ms, %s".format(elapsed, (count.toFloat / elapsed) * 1000f))
+    sw.stop()
+    println("%d ops in %s, %,.2f ops/sec".format(
+        count, sw.elapsedString, (count.toFloat/sw.elapsed)*1000f))
   }
 
   var _tmp: StringBuilder = new StringBuilder()
@@ -171,6 +168,27 @@ object InsertTest {
 
 }
 
-class StopWatch {
+class StopWatch(var stime: Long = 0) {
+  var etime = stime
+  var elapsed: Long = 0
 
+  def zero(): StopWatch = {
+    stime = System.currentTimeMillis()
+    etime = stime
+    return this
+  }
+
+  def stop(): StopWatch = {
+    etime = System.currentTimeMillis()
+    elapsed = etime - stime
+    return this
+  }
+
+  def elapsedString: String = {
+    if (elapsed > 10000) {
+      return "%,.2f s".format(elapsed.toFloat / 1000f)
+    } else {
+      return "%d ms".format(elapsed)
+    }
+  }
 }
