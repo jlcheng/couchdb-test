@@ -24,6 +24,7 @@ import org.apache.http.HttpResponse
 import joptsimple.OptionParser
 import joptsimple.OptionSet
 import org.apache.http.util.EntityUtils
+import java.util.Arrays
 
 object InsertTest {
 
@@ -125,9 +126,9 @@ object InsertTest {
     }
 
     val doc = mkdoc(size)
-    println("Each document is approximately %s kb".format(doc.length() / 1024))
+    println("Each document is approximately %.2f kb".format(doc.length() / 1024f))
     val latch = new CountDownLatch(count)
-    val sw = new StopWatch().zero()    
+    val sw = new StopWatch().zero()
     0.until(count).foreach { docId =>
       val put = new HttpPut(dbUrl + "/" + docId + "?batch=ok")
       put.setEntity(new StringEntity(doc))
@@ -148,20 +149,14 @@ object InsertTest {
     asyncHttpClient.shutdown()
     sw.stop()
     println("%d ops in %s, %,.2f ops/sec".format(
-        count, sw.elapsedString, (count.toFloat/sw.elapsed)*1000f))
+      count, sw.elapsedString, (count.toFloat / sw.elapsed) * 1000f))
   }
-
-  var _tmp: StringBuilder = new StringBuilder()
-  for (i <- 0 until 1024) {
-    _tmp.append("0")
-  }
-  val str1k: String = _tmp.toString()
 
   def mkdoc(size: Int): String = {
     val sb = new StringBuilder("{\"prop0\":\"")
-    for (i <- 0 until size) {
-      sb.append(str1k)
-    }
+    val buf: Array[Char] = new Array[Char](size * 1024)
+    Arrays.fill(buf, '0')
+    sb.appendAll(buf)
     sb.append("\"}")
     return sb.toString()
   }
