@@ -2,10 +2,6 @@
  * Copyright John Cheng, Aug 12, 2011
  */
 
-/**
- * @author jcheng
- *
- */
 package jcheng
 import java.util.Arrays.asList
 import java.util.concurrent.CountDownLatch
@@ -30,7 +26,7 @@ import org.codehaus.jackson.node.ObjectNode
 import joptsimple.OptionParser
 import joptsimple.OptionSet
 
-object InsertTest {
+object CouchDBTest {
 
   def main(argv: Array[String]): Unit = {
     // Setup options parser

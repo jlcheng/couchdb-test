@@ -1,1 +1,1 @@
-java -Xverify:none -XX:MaxPermSize=128m -Xms768m -Xmx768m -Xss2M -XX:+UseTLAB -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+AggressiveOpts -jar `dirname $0`/sbt-launch.jar "$@"
+java -Xverify:none -XX:MaxPermSize=128m -Xms1536m -Xmx1536m -Xss2M -XX:+UseTLAB -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+AggressiveOpts -XX:+UseFastAccessorMethods -XX:+UseCompressedStrings -jar `dirname $0`/sbt-launch.jar "$@"
