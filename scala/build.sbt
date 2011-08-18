@@ -14,7 +14,7 @@ libraryDependencies ++= Seq(
     "com.google.guava" % "guava" % "r05"
 )
 
-mainClass in (Compile, run) := Some("jcheng.InsertTest")
+mainClass in (Compile, run) := Some("jcheng.CouchDBTest")
 
 
 
