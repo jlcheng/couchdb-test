@@ -1,1 +1,5 @@
-java -Xverify:none -XX:MaxPermSize=128m -Xms1536m -Xmx1536m -Xss2M -XX:+UseTLAB -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+AggressiveOpts -XX:+UseFastAccessorMethods -XX:+UseCompressedStrings -jar `dirname $0`/sbt-launch.jar "$@"
+#!/bin/bash
+
+HEAP_SIZE=2048m
+GC_STRATEGY="-XX:+UseParallelGC -XX:+UseParallelOldGC" # High throughput, but could have long GC pauses
+java -Xverify:none -XX:MaxPermSize=128m -Xms$HEAP_SIZE -Xmx$HEAP_SIZE -Xss2M -XX:+UseTLAB $GC_STRATEGY -XX:+AggressiveOpts -XX:+UseFastAccessorMethods -XX:+UseCompressedStrings -jar `dirname $0`/sbt-launch.jar "$@"
