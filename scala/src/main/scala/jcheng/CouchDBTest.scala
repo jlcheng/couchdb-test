@@ -4,6 +4,7 @@
 
 package jcheng
 import java.util.Arrays.asList
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.Arrays
 
@@ -17,10 +18,8 @@ import org.apache.http.client.methods.HttpPut
 import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.nio.client.DefaultHttpAsyncClient
-import org.apache.http.nio.client.HttpAsyncClient
 import org.apache.http.nio.concurrent.FutureCallback
 import org.apache.http.params.CoreConnectionPNames
-import org.apache.http.params.CoreProtocolPNames
 import org.apache.http.util.EntityUtils
 import org.apache.http.HttpResponse
 import org.codehaus.jackson.map.ObjectMapper
@@ -35,20 +34,18 @@ object CouchDBTest {
   val objectMapper = new ObjectMapper()
 
   // Create an HttpAsyncClient 
-  // Define convenience method:
-  //   'request' - synchronous GET/PUT/POST, return a status code and the response
-  //   'flush'   - calls _ensure_full_commit API to flush change to disk
-  //   'compact' - waits for the database to finish compacting
-  val asyncHttpClient = new DefaultHttpAsyncClient();
-  val httpParams = asyncHttpClient.getParams()
+  // Define convenience methods:
+  //   'request'            - synchronous GET/PUT/POST, return a status code and the response
+  //   'flush'              - calls _ensure_full_commit API to flush change to disk
+  //   'runCompactAndBlock' - waits for the database to finish compacting
+  val httpAsyncClient = new DefaultHttpAsyncClient();
+  val httpParams = httpAsyncClient.getParams()
   httpParams.setParameter(CoreConnectionPNames.STALE_CONNECTION_CHECK, false)
   httpParams.setParameter(CoreConnectionPNames.TCP_NODELAY, true)
   httpParams.setParameter(CoreConnectionPNames.SO_REUSEADDR, true)
-  httpParams.setParameter(CoreProtocolPNames.USE_EXPECT_CONTINUE, true)
-  asyncHttpClient.start()
   def request(method: HttpUriRequest): (Int, String) = {
     try {
-      val future = asyncHttpClient.execute(method, null)
+      val future = httpAsyncClient.execute(method, null)
       val response = future.get()
       val statusCode = response.getStatusLine().getStatusCode()
       val content = Source.fromInputStream(response.getEntity().getContent()).getLines.mkString
@@ -63,6 +60,7 @@ object CouchDBTest {
     request(post)
   }
   def runCompactAndBlock(dbUrl: String) = {
+    flush(dbUrl)
     val post = new HttpPost(dbUrl + "/_compact")
     post.setHeader("Content-Type", "application/json")
     var isRunning = true
@@ -74,9 +72,12 @@ object CouchDBTest {
   }
 
   def main(argv: Array[String]): Unit = {
-    // Surround everythin in try/catch until I can figure out how to get sbt to print 
-    // unhandled stack traces.
+    // Surround everything in try/catch 
+    //   1. So we can shut down httpAsyncClient when we're done
+    //   2. Because sbt doesn't print stacktrace to stdout on error    
     try {
+      httpAsyncClient.start()
+
       // Setup options parser
       val parser = new OptionParser()
       parser.acceptsAll(asList("help", "h"), "help")
@@ -133,7 +134,7 @@ object CouchDBTest {
       }
       val serverName = serverSpec.value(options)
       val dbName = dbNameSpec.value(options)
-      val dbUrl = "%s/%s".format(serverName, dbName)
+      val dbUrl = serverName + "/" + dbName
       val count = countSpec.value(options)
       val docCount = docCountSpec.value(options)
       val mode = modeSpec.value(options)
@@ -162,108 +163,61 @@ object CouchDBTest {
       }
       runCompactAndBlock(dbUrl)
 
+      // A reusable method for inserting documents into the database
+      def insertDocs(insertCount: Int, batch: Boolean = false) {
+        val docIds = 0 until insertCount
+        val doc = mkdoc(size)
+        val latch = new CountDownLatch(docIds.length)
+        docIds.foreach { docId =>
+          val put = new HttpPut(dbUrl + "/" + docId + (if (batch) "?batch=ok" else ""))
+          put.setEntity(new StringEntity(doc))
+          httpAsyncClient.execute(put, new FutureCallback[HttpResponse]() {
+            override def completed(response: HttpResponse) {
+              EntityUtils.consume(response.getEntity())
+              latch.countDown()
+            }
+            override def failed(exception: Exception) {
+              latch.countDown()
+            }
+            override def cancelled() {
+              latch.countDown()
+            }
+          })
+        }
+        latch.await()
+        runCompactAndBlock(dbUrl)
+      }
       println("Performing %d ops (%s) with a document size of %d".format(count, mode, size))
 
       val sw = new StopWatch()
       mode match {
         case "insert" =>
-          val doc = mkdoc(size)
-          val docIds = 0.until(count)
-          val latch = new CountDownLatch(docIds.length)
           sw.zero()
-          docIds.foreach { docId =>
-            val put = new HttpPut(dbUrl + "/" + docId + (if (doBatch) "?batch=ok" else ""))
-            put.setEntity(new StringEntity(doc))
-            asyncHttpClient.execute(put, new FutureCallback[HttpResponse]() {
-              override def completed(response: HttpResponse) {
-                EntityUtils.consume(response.getEntity())
-                latch.countDown()
-              }
-              override def failed(exception: Exception) {
-                latch.countDown()
-              }
-              override def cancelled() {
-                latch.countDown()
-              }
-            })
-          }
-          latch.await()
-          flush(dbUrl)
-          runCompactAndBlock(dbUrl)
+          insertDocs(count, doBatch)
           sw.stop()
         case "update-direct" =>
-          var doc = mkdoc(size)
-          val docIds = 0.until(docCount)
-          var latch = new CountDownLatch(docIds.length)
-          docIds.foreach { docId =>
-            val put = new HttpPut(dbUrl + "/" + docId + "?batch=ok")
-            put.setEntity(new StringEntity(doc))
-            asyncHttpClient.execute(put, new FutureCallback[HttpResponse]() {
-              override def completed(response: HttpResponse) {
-                val statusCode = response.getStatusLine().getStatusCode()
-                val content = EntityUtils.toString(response.getEntity())
-                latch.countDown()
-              }
-              override def failed(exception: Exception) {
-                latch.countDown()
-              }
-              override def cancelled() {
-                latch.countDown()
-              }
-            })
-          }
-          latch.await()
-          flush(dbUrl)
-          runCompactAndBlock(dbUrl)
+          insertDocs(docCount)
           println("Created " + docCount + " test documents")
 
-          latch = new CountDownLatch(count)
+          val latch = new CountDownLatch(count)
           val updateDispatcher = new UpdateDirectDispatcher(dbUrl, latch)
           updateDispatcher.start()
-          var docId = 0
           sw.zero()
           0.until(count).foreach { idx =>
-            docId = docId + 1
-            if (docId >= docCount) {
-              docId = 0
-            }
+            val docId = idx % docCount
             // Tell update dispatcher we need to update document with this docId,
             // dispatcher will retry if necessary!
             updateDispatcher ! docId
           }
           latch.await()
           updateDispatcher ! "stop"
-          flush(dbUrl)
           runCompactAndBlock(dbUrl)
           sw.stop()
           println("Conflict rate: %d/%d, %.2f%%".format(updateDispatcher.conflicts, count, (updateDispatcher.conflicts.toFloat / count.toFloat * 100)))
         case "update-handler" =>
-          var doc = mkdoc(size)
-          val docIds = 0.until(docCount)
-          var latch = new CountDownLatch(docIds.length)
-          docIds.foreach { docId =>
-            val put = new HttpPut(dbUrl + "/" + docId + "?batch=ok")
-            put.setEntity(new StringEntity(doc))
-            asyncHttpClient.execute(put, new FutureCallback[HttpResponse]() {
-              override def completed(response: HttpResponse) {
-                val statusCode = response.getStatusLine().getStatusCode()
-                val content = Source.fromInputStream(response.getEntity().getContent()).getLines.mkString
-                latch.countDown()
-              }
-              override def failed(exception: Exception) {
-                latch.countDown()
-              }
-              override def cancelled() {
-                latch.countDown()
-              }
-            })
-          }
-          latch.await()
-          flush(dbUrl)
-          runCompactAndBlock(dbUrl)
+          insertDocs(docCount)
           println("Created " + docCount + " test documents")
-          val objectMapper = new ObjectMapper()
-          var docId = 0
+
           val designDoc = "{ \"updates\": {                                                   \n" +
             "\"increment\": \"function(doc, req) {                                              " +
             "                 if ( typeof(doc.count) !== 'undefined' ) {                        " +
@@ -278,18 +232,16 @@ object CouchDBTest {
           val put = new HttpPut(dbUrl + "/_design/test_design")
           put.setEntity(new StringEntity(designDoc))
           request(put)
-          latch = new CountDownLatch(count)
-          sw.zero()
+          println("Uploaded design document")
+
+          val latch = new CountDownLatch(count)
           val incrementUrl = dbUrl + "/_design/test_design/_update/increment/"
+          sw.zero()
           0.until(count).foreach { idx =>
-            docId = docId + 1
-            if (docId >= docCount) {
-              docId = 0
-            }
+            val docId = idx % docCount
             val put = new HttpPut(incrementUrl + docId + (if (doBatch) "?batch=ok" else ""))
-            asyncHttpClient.execute(put, new FutureCallback[HttpResponse]() {
+            httpAsyncClient.execute(put, new FutureCallback[HttpResponse]() {
               override def completed(response: HttpResponse) {
-                //EntityUtils.consume(response.getEntity())
                 latch.countDown()
               }
               override def failed(exception: Exception) {
@@ -302,11 +254,9 @@ object CouchDBTest {
           }
           latch.await()
           flush(dbUrl)
-          runCompactAndBlock(dbUrl)
           sw.stop()
         case _ => {}
       }
-      asyncHttpClient.shutdown()
       val opsPerSec = if (sw.elapsed < 1) 0f else (count.toFloat / sw.elapsed) * 1000f
       println("%d ops in %s, %,.2f ops/sec".format(
         count, sw.elapsedString, opsPerSec))
@@ -315,6 +265,8 @@ object CouchDBTest {
         e.printStackTrace()
       case _ =>
         {}
+    } finally {
+      httpAsyncClient.shutdown()
     }
   }
 
@@ -332,10 +284,20 @@ object CouchDBTest {
 class UpdateDirectDispatcher(
   val dbUrl: String,
   val latch: CountDownLatch) extends Actor {
-  
-  val httpClient = CouchDBTest.asyncHttpClient;
+
+  val httpClient = CouchDBTest.httpAsyncClient;
   val objectMapper = CouchDBTest.objectMapper;
   var conflicts: Int = 0
+  val docUrlCache = new ConcurrentHashMap[Int, String]()
+
+  def getDocUrl(docId: Int): String = {
+    if (docUrlCache.contains(docId)) {
+      return docUrlCache.get(docId)
+    }
+    val docUrl = dbUrl + "/" + docId
+    docUrlCache.putIfAbsent(docId, docUrl)
+    return docUrl
+  }
 
   def act() {
     loop {
@@ -348,7 +310,6 @@ class UpdateDirectDispatcher(
           docJson.put("count", count + 1)
           val put = new HttpPut(docUrl)
           put.setEntity(new StringEntity(objectMapper.writeValueAsString(docJson)))
-          put.setHeader("If-Match", docJson.get("_rev").getTextValue())
           httpClient.execute(put, new FutureCallback[HttpResponse]() {
             override def completed(response: HttpResponse) {
               if (response.getStatusLine().getStatusCode() == 201) {
